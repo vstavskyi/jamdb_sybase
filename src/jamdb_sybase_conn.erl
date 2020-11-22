@@ -8,24 +8,7 @@
 -export([prepare/3, unprepare/2]).
 -export([execute/3, execute/4]).
 
--include("TDS_constants.hrl").
 -include("jamdb_sybase.hrl").
--include("jamdb_sybase_defaults.hrl").
-
--define(ENCODER, jamdb_sybase_tds_encoder).
--define(DECODER, jamdb_sybase_tds_decoder).
-
--record(conn, {
-    socket = undefined,
-    state = disconnected :: disconnected | connected | auth_negotiate,
-    packet_size :: non_neg_integer(),
-    tds_ver,
-    server = {<<"Unknown">>, <<0,0,0,0>>},
-    req_capabilities = [],
-    resp_capabilities = [],
-    env = [],
-    prepared = []
-}).
 
 -opaque state() :: #conn{}.
 -type error_type() :: socket | remote | local.
@@ -37,35 +20,21 @@
 -type result_set() :: {result_set, columns(), metainfo(), rows()}.
 -type return_status() :: non_neg_integer().
 -type out_params() :: list().  %% TODO
--type procedure_result() :: 
-        {proc_result, return_status(), out_params()}.
--type result() :: 
-        affected_rows() | 
-        result_set() | 
-        procedure_result().
--type query_reult() :: {ok, [result()], state()}.
--type env() :: 
-        {host, string()} |
-        {port, string()} |
-        {user, string()} |
-        {password, string()} |
-        {database, string()} |
-        {app_name, string()} |
-        {lib_name, string()} |
-        {language, string()} |
-        {packet_size, non_neg_integer()}.
-        %% TODO add message_handler
+-type procedure_result() :: {proc_result, return_status(), out_params()}.
+-type result() :: affected_rows() | result_set() | procedure_result().
+-type query_result() :: {ok, [result()], state()}.
 -type options() :: [env()].
 
 -export_type([state/0]).
 -export_type([options/0]).
 
 %% API
--spec connect([env()], timeout()) -> empty_result().
-connect(Opts) ->
-    connect(Opts, ?DEF_TIMEOUT).
-
 -spec connect([env()]) -> empty_result().
+connect(Opts) ->
+    Timeout  = proplists:get_value(timeout, Opts, ?DEF_TIMEOUT),
+    connect(Opts, Timeout).
+
+-spec connect([env()], timeout()) -> empty_result().
 connect(Opts, Timeout) ->
     Host     = proplists:get_value(host, Opts, ?DEF_HOST),
     Port     = proplists:get_value(port, Opts, ?DEF_PORT),
@@ -77,6 +46,7 @@ connect(Opts, Timeout) ->
         {ok, Socket} ->
             Conn = #conn{
                 socket        = Socket, 
+                timeout       = Timeout,
                 packet_size   = PktSize,
                 env           = Opts
             },
@@ -91,11 +61,11 @@ connect(Opts, Timeout) ->
     end.
 
 -spec disconnect(state()) -> {ok, [env()]}.
-disconnect(Conn) ->
-    disconnect(Conn, ?DEF_TIMEOUT).
+disconnect(#conn{timeout=Timeout} = Conn) ->
+    disconnect(Conn, Timeout).
 
 -spec disconnect(state(), timeout()) -> {ok, [env()]}.
-disconnect(#conn{state=connected, socket=Socket, env=Env}, 0) ->
+disconnect(#conn{socket=Socket, env=Env}, 0) ->
     ok = gen_tcp:close(Socket),
     {ok, Env};
 disconnect(Conn = #conn{state=connected, socket=Socket, env=Env,
@@ -117,11 +87,11 @@ reconnect(Conn) ->
     {ok, InitOpts} = disconnect(Conn, 0),
     connect(InitOpts).
 
--spec sql_query(state(), string()) -> query_reult().
-sql_query(Conn, Query) ->
-    sql_query(Conn, Query, ?DEF_TIMEOUT).
+-spec sql_query(state(), string()) -> query_result().
+sql_query(#conn{timeout=Timeout} = Conn, Query) ->
+    sql_query(Conn, Query, Timeout).
 
--spec sql_query(state(), string(), timeout()) -> query_reult().
+-spec sql_query(state(), string(), timeout()) -> query_result().
 sql_query(Conn = #conn{state=connected, socket=Socket,
         packet_size=PktSize}, Query, Timeout) ->
     BQuery = to_binary(Query),
@@ -138,7 +108,7 @@ sql_query(Conn, Query, Timeout) ->
     end.
 
 prepare(Conn = #conn{state=connected, socket=Socket,
-        packet_size=PktSize}, StmtId, Query) ->
+        timeout=Timeout, packet_size=PktSize}, StmtId, Query) ->
     BStmtId = to_binary(StmtId),
     BQuery = to_binary(Query),
     BQuery2 = <<"create proc ", BStmtId/binary, " as ", BQuery/binary>>,
@@ -146,7 +116,7 @@ prepare(Conn = #conn{state=connected, socket=Socket,
     TokenStream = ?ENCODER:encode_tokens(TokenList),
     DataStream = ?ENCODER:encode_packets(TokenStream, normal, PktSize),
     case send(Socket, DataStream) of
-        ok              -> handle_prepare_resp(Conn, ?DEF_TIMEOUT);
+        ok              -> handle_prepare_resp(Conn, Timeout);
         {error, Reason} -> handle_error(socket, Reason, Conn)
     end;
 prepare(Conn, Stmt, Query) ->
@@ -156,13 +126,13 @@ prepare(Conn, Stmt, Query) ->
     end.
 
 unprepare(Conn = #conn{state=connected, socket=Socket,
-        packet_size=PktSize}, StmtId) ->
+        timeout=Timeout, packet_size=PktSize}, StmtId) ->
     BStmtId = to_binary(StmtId),
     TokenList = [{dynamic, unprepare, [], BStmtId, <<>>}],
     TokenStream = ?ENCODER:encode_tokens(TokenList),
     DataStream = ?ENCODER:encode_packets(TokenStream, normal, PktSize),
     case send(Socket, DataStream) of
-        ok              -> handle_unprepare_resp(Conn, ?DEF_TIMEOUT);
+        ok              -> handle_unprepare_resp(Conn, Timeout);
         {error, Reason} -> handle_error(socket, Reason, Conn)
     end;
 unprepare(Conn, Stmt) ->
@@ -171,8 +141,8 @@ unprepare(Conn, Stmt) ->
         Error       -> Error
     end.
 
-execute(Conn, Stmt, Args) ->
-    execute(Conn, Stmt, Args, ?DEF_TIMEOUT).
+execute(#conn{timeout=Timeout} = Conn, Stmt, Args) ->
+    execute(Conn, Stmt, Args, Timeout).
 
 execute(Conn = #conn{state=connected, socket=Socket,
         packet_size=PktSize}, StmtId, Args, Timeout) ->
@@ -214,16 +184,34 @@ login(Conn = #conn{env=Env, socket=Socket, packet_size=PktSize}, Timeout) ->
     DataStream = ?ENCODER:encode_packets(TokenStream, login, PktSize),
     case send(Socket, DataStream) of
         ok ->
-            case handle_empty_resp(Conn, Timeout) of
-                {ok, Conn2 = #conn{state = auth_negotiate}} ->
-                    %%TODO Negotiate
-                    Reason = <<"Auth Negotiate not implemented">>,
-                    handle_error(local, Reason, Conn2);
+            case handle_resp(Conn, Timeout) of
+                {ok, TokensBufer, _, Conn2 = #conn{state = auth_negotiate}} ->
+                    {AuthParams, _} = take_token_value(params, TokensBufer, []),
+                    login(Conn2, AuthParams, Timeout);
+                {ok, _, _, Conn2} ->
+                    {ok, Conn2};
                 Other ->
                     Other
             end;
         {error, Reason} ->
             handle_error(socket, Reason, Conn)
+    end.
+
+login(Conn = #conn{env=Env, socket=Socket, packet_size=PktSize}, AuthParams, Timeout) ->
+    _Pass    = proplists:get_value(password, Env),
+    EncPass = case AuthParams of
+        [1,_Key] -> <<>>;  %% TODO public_key_encrypt
+        [_Salt]  -> <<>>   %% TODO feal_encrypt
+    end,
+    Formats = [#format{datatype=?TDS_TYPE_VARBINARY, datatype_group=variable, datatype_max_len=255}],
+    Formats2 = [#format{datatype=?TDS_TYPE_VARCHAR, datatype_group=variable, datatype_max_len=255}] ++ Formats,
+    TokenList = [{message, 1, 2},{paramsformat, 1, Formats},{params, [EncPass]},
+                 {message, 1, 3},{paramsformat, 2, Formats2},{params, [null, EncPass]}],
+    TokenStream = ?ENCODER:encode_tokens(TokenList),
+    DataStream = ?ENCODER:encode_packets(TokenStream, normal, PktSize),
+    case send(Socket, DataStream) of
+        ok              -> handle_empty_resp(Conn, Timeout);
+        {error, Reason} -> handle_error(socket, Reason, Conn)
     end.
 
 system_query(Conn = #conn{state=connected, socket=Socket, 
@@ -307,8 +295,8 @@ decode_stream(Stream, TokensBufer, Results, Conn) ->
         {ok, Token, Stream2} ->
             case element(1, Token) of
             Done when Done == done; Done == doneinproc; Done == doneproc ->
-                io:format("TokensBufer~p~n", [TokensBufer]),
-                io:format("DoneToken ~p~n", [Token]),
+                %io:format("TokensBufer~p~n", [TokensBufer]),
+                %io:format("DoneToken ~p~n", [Token]),
                 case handle_done_token(Token, TokensBufer, Results) of
                     {next_token, Results2} ->
                         decode_stream(Stream2, [], Results2, Conn);
@@ -351,23 +339,24 @@ handle_done_status([?TDS_DONE_COUNT|Status], Count, TokensBufer, Results) ->
     {Result, TokensBufer2} = take_result(TokensBufer, Count),
     handle_done_status(Status, Count, TokensBufer2, [Result|Results]);
 handle_done_status([?TDS_DONE_PROC|Status], Count, TokensBufer, Results) ->
-    Results2 = drop_inproc_updates(Results),
+    %Results2 = drop_inproc_updates(Results),
     {ProcResult, TokensBufer2} = take_procedure_result(TokensBufer),
-    handle_done_status(Status, Count, TokensBufer2, [ProcResult|Results2]);
+    handle_done_status(Status, Count, TokensBufer2, [ProcResult|Results]);
 handle_done_status([Flag|Status], Count, TokensBufer, Results) 
         when Flag =:= ?TDS_DONE_EVENT; Flag =:= ?TDS_DONE_ATTN; 
                 Flag =:= ?TDS_DONE_INXACT ->
     handle_done_status(Status, Count, TokensBufer, Results);
 handle_done_status([?TDS_DONE_ERROR|_Status], _Count, TokensBufer, _Results) ->
-    {Message, _} = take_token(message, TokensBufer), 
-        %% TODO check that the class > 10
-    {error, remote, Message};
+    {Message, _} = take_token(message, TokensBufer),
+    #message{msg_number=MsgNumber, msg_body=MsgBody} = Message,
+    {ok, TokensBufer, [{proc_result, MsgNumber, MsgBody}]};
 handle_done_status([], Count, TokensBufer, Results) ->
-    case Results of
+    Results2 = drop_inproc_results(Results),
+    case Results2 of
         [] ->
             {ok, TokensBufer, [{affected_rows, Count}]};
         _ ->
-            {ok, TokensBufer, lists:reverse(Results)}
+            {ok, TokensBufer, lists:reverse(Results2)}
     end.
 
 take_result(TokensBufer, Count) ->
@@ -389,10 +378,12 @@ take_procedure_result(TokensBufer) ->
     %{[Value || {returnvalue, Value} <- Result], TokensBufer2}.
     %% Get OutParams from params token if widetable
     {OutParams, TokensBufer3} = take_token_value(params, TokensBufer2, []),
-    {{procedure_result, Status, OutParams}, TokensBufer3}.
+    {{proc_result, Status, OutParams}, TokensBufer3}.
 
-drop_inproc_updates(Results) ->
-    lists:filter(fun ({affected_rows, _}) -> false; (_) -> true end, Results).
+drop_inproc_results(Results) ->
+    lists:filter(fun ({proc_result, undefined, []}) -> false; (_) -> true end, Results).
+%drop_inproc_updates(Results) ->
+    %lists:filter(fun ({affected_rows, _}) -> false; (_) -> true end, Results).
 
 get_field_name(#format{label_name = <<>>, column_name = ColumnName}) ->
     ColumnName;
