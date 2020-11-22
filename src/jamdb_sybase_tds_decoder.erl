@@ -4,11 +4,11 @@
 -export([decode_packet/1]).
 -export([decode_token/2]).
 
--include("TDS_constants.hrl").
 -include("jamdb_sybase.hrl").
 
 %% API
-decode_packet(<<?TDS_PKT_RESPONSE, Status, PacketSize:16, 0:32, Rest/bits>>) ->
+decode_packet(<<Type, Status, PacketSize:16, 0:32, Rest/bits>>)
+        when Type =:= ?TDS_PKT_RESPONSE; Type =:= ?TDS_PKT_NORMAL ->
     BodySize = PacketSize-8,
     case Rest of
         <<PacketBody:BodySize/binary, Rest2/bits>> ->
@@ -34,7 +34,8 @@ decode_token(<<Token, Data/binary>>, TokensBufer) ->
         ?TDS_TOKEN_DONEPROC ->      decode_done_token(Data, doneproc);
         ?TDS_TOKEN_LOGINACK ->      decode_loginack_token(Data);
         ?TDS_TOKEN_CAPABILITY ->    decode_capability_token(Data);
-        ?TDS_TOKEN_EED ->           decode_message_token(Data);
+        ?TDS_TOKEN_MSG ->           decode_message_token(Data);
+        ?TDS_TOKEN_EED ->           decode_eed_token(Data);
         ?TDS_TOKEN_ENVCHANGE ->     decode_envchange_token(Data);
         ?TDS_TOKEN_CONTROL ->       decode_control_token(Data);
         ?TDS_TOKEN_RETURNVALUE ->   decode_returnvalue_token(Data);
@@ -74,7 +75,10 @@ decode_capability_token(<<_Len:16, 1, ReqLen, Req:ReqLen/unit:8, 2, RespLen,
     RespCap = decode_valuemask(Resp),
     {ok, {capability, ReqCap, RespCap}, Rest}.
 
-decode_message_token(<<_Len:16, MsgNumber:32, MsgState, Class, SQLStateLen, 
+decode_message_token(<<_Len:8, Status, MsgId:16, Rest/binary>>) ->
+    {ok, {message, Status, MsgId}, Rest}.
+
+decode_eed_token(<<_Len:16, MsgNumber:32, MsgState, Class, SQLStateLen, 
         SQLState:SQLStateLen/binary, Status, TransactionState:16,
         MsgLen:16, MsgBody:MsgLen/binary,
         ServerNameLength, ServerName:ServerNameLength/binary,
@@ -511,8 +515,8 @@ decode_decimal(Data, 0) ->
 decode_decimal(Data, Scale) ->
     Bits = bit_size(Data) - 8,
     case Data of
-        <<0:8, Value:Bits>> -> {0, Value, -Scale};
-        <<1:8, Value:Bits>> -> {1, Value, -Scale}
+        <<0:8, Value:Bits>> -> {1, Value, -Scale};
+        <<1:8, Value:Bits>> -> {-1, Value, -Scale}
     end.
 
 decode_text(<<0, Rest/binary>>, _) ->
