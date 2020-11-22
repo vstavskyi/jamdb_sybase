@@ -5,7 +5,6 @@
 -export([encode_tokens/1]).
 -export([prepare_input_dataformat/1]).
 
--include("TDS_constants.hrl").
 -include("jamdb_sybase.hrl").
 
 %% API
@@ -36,6 +35,7 @@ encode_tokens([Token|TokensList], Previous, TokenStream) ->
     TokenType = element(1, Token),
     Data = case TokenType of
         language ->     encode_language_token(Token);
+        message ->      encode_message_token(Token);
         dynamic ->      encode_dynamic_token(Token);
         paramsformat -> encode_paramsformat_token(Token);
         dbrpc ->        encode_dbrpc_token(Token);
@@ -55,16 +55,17 @@ encode_login_record({login, EnvOpts}) ->
     UserPID         = os:getpid(),
     User            = proplists:get_value(user, EnvOpts),
     Pass            = proplists:get_value(password, EnvOpts),
-    AppName         = proplists:get_value(app_name, EnvOpts, "erlang"),
-    LibName         = proplists:get_value(lib_name, EnvOpts, "jamdb"),
+    AppName         = proplists:get_value(app_name, EnvOpts, "jamdb"),
+    LibName         = proplists:get_value(lib_name, EnvOpts, "beam"),
     ServerName      = proplists:get_value(server_name, EnvOpts, ""),
     Language        = proplists:get_value(language, EnvOpts, "us_english"),
     Charset         = proplists:get_value(charset, EnvOpts, utf8),
     PacketSize      = proplists:get_value(packet_size, EnvOpts, 512),
+    EncPass         = proplists:get_value(encrypt_password, EnvOpts, 0),  %% TODO
     <<
         (encode_data(UserHost, ?USER_TYPE_CHAR, 30)):31/binary,
         (encode_data(User, ?USER_TYPE_CHAR, 30)):31/binary,
-        (encode_data(Pass, ?USER_TYPE_CHAR, 30)):31/binary,
+        (if EncPass > 0 -> 0; true -> encode_data(Pass, ?USER_TYPE_CHAR, 30) end):31/binary,
         (encode_data(UserPID, ?USER_TYPE_CHAR, 30)):31/binary,
         2,          %% type of int2: bigendian
         0,          %% type of int4: bigendian
@@ -79,7 +80,7 @@ encode_login_record({login, EnvOpts}) ->
         (encode_data(AppName, ?USER_TYPE_CHAR, 30)):31/binary,
         (encode_data(ServerName, ?USER_TYPE_CHAR, 30)):31/binary,
         %% Remote password array (used on server-to-server dialogs)
-        (encode_data(encode_lrempw(Pass), ?USER_TYPE_CHAR, 255)):256/binary, 
+        (if EncPass > 0 -> 0; true -> encode_data(encode_lrempw(Pass), ?USER_TYPE_CHAR, 255) end):256/binary,
         5,0,0,0,    %% Protocol version
         (encode_data(LibName, ?USER_TYPE_CHAR, 10)):11/binary,
         16,0,0,1,   %% Lib version
@@ -88,7 +89,9 @@ encode_login_record({login, EnvOpts}) ->
         16,         %% type of 4 byte datetime: bigendian
         (encode_data(Language, ?USER_TYPE_CHAR, 30)):31/binary,
         1,          %% notify on lang change
-        0:104,      %% security fields
+        0:16,       %% security fields
+        if EncPass > 0 -> 33; true -> 0 end,
+        0:80,
         (encode_data(Charset, ?USER_TYPE_CHAR, 30)):31/binary,
         1,          %% notify on charset change
         (encode_data(PacketSize, ?USER_TYPE_CHAR, 6)):7/binary,
@@ -108,6 +111,14 @@ encode_language_token({language, Query}) ->
         (byte_size(Query)+1):32,    %% token length
         0,                          %% status mask: not parameterized query
         Query/binary
+    >>.
+
+encode_message_token({message, Status, MsgId}) ->
+    <<
+        ?TDS_TOKEN_MSG, 
+        3,                          %% length
+        Status,                     %% status
+        MsgId:16                    %% id
     >>.
 
 %% If TDS_PROTO_DYNAMIC (CS_PROTO_DYNAMIC) capability is enabled (1),
