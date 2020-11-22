@@ -1,8 +1,9 @@
 JamDB Sybase 
 ============
-[![Build Status](https://travis-ci.org/erlangbureau/jamdb_sybase.svg?branch=master)](https://travis-ci.org/erlangbureau/jamdb_sybase)
 
-JamDB Sybase is a small and fast Erlang driver for SAP Sybase Adaptive Server Enterprise (ASE).
+Erlang driver and Ecto adapter for Sybase ASE Database
+
+[![hex downloads](https://img.shields.io/hexpm/dt/jamdb_sybase?label=hex%20downloads)](https://hex.pm/packages/jamdb_sybase)
 
 Goals
 =====
@@ -50,15 +51,3 @@ TDS Protocol References
 * [Official TDS 5.0 Specification, version 3.8, January 2006](http://ondoc.logand.com/d/2219/pdf)
 * [FreeTDS Documentation (C)](http://www.freetds.org)
 * [jTDS Documentation (Java)](http://jtds.sourceforge.net/doc.html)
-
-Alternatives
-============
-* [Erlang ODBC](http://www.erlang.org/doc/man/odbc.html)
-* [erlang-db-driver](https://github.com/denglf/erlang-db-driver)
-* [erldb-driver](https://github.com/RYTong/erldb-driver)
-* [ErlSybase](https://github.com/VanyaDNDZ/ErlSybase)
-
-Project Chat Room
-=================
-[![Gitter](https://badges.gitter.im/Join Chat.svg)](https://gitter.im/erlangbureau/jamdb_sybase?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
-
