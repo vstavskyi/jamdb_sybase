@@ -1,5 +1,10 @@
 -module(jamdb_sybase).
+-vsn("0.7.4").
 -behaviour(gen_server).
+
+-ifdef(OTP_RELEASE).
+-compile({nowarn_deprecated_function, [{erlang, get_stacktrace, 0}]}).
+-endif.
 
 %% API
 -export([start_link/1, start/1]).
@@ -13,7 +18,6 @@
 -export([handle_call/3, handle_cast/2, handle_info/2]).
 -export([code_change/3]).
 
--include("jamdb_sybase_defaults.hrl").
 -include("jamdb_sybase.hrl").
 
 %% API
@@ -29,11 +33,11 @@ start(Opts) when is_list(Opts) ->
 stop(Pid) ->
     call_infinity(Pid, stop).
 
-sql_query(Pid, Query) ->
-    sql_query(Pid, Query, ?DEF_TIMEOUT).
+sql_query(Pid, Query, _Timeout) ->
+    sql_query(Pid, Query).
 
-sql_query(Pid, Query, Timeout) ->
-    call_infinity(Pid, {sql_query, Query, Timeout}).
+sql_query(Pid, Query) ->
+    call_infinity(Pid, {sql_query, Query}).
 
 prepare(Pid, Stmt, Query) ->
     call_infinity(Pid, {prepare, Stmt, Query}).
@@ -44,73 +48,72 @@ unprepare(Pid, Stmt) ->
 execute(Pid, Stmt) ->
     execute(Pid, Stmt, []).
 
-execute(Pid, Stmt, Args) ->
-    execute(Pid, Stmt, Args, ?DEF_TIMEOUT).
+execute(Pid, Stmt, Args, _Timeout) ->
+    execute(Pid, Stmt, Args).
 
-execute(Pid, Stmt, Args, Timeout) ->
-    call_infinity(Pid, {execute, Stmt, Args, Timeout}).
+execute(Pid, Stmt, Args) ->
+    call_infinity(Pid, {execute, Stmt, Args}).
 
 %% gen_server callbacks
 init(Opts) ->
-    {ok, State} = jamdb_sybase_conn:connect(Opts),
-    {ok, State}.
+    case jamdb_sybase_conn:connect(Opts) of
+        {ok, State} ->
+            case State of
+                Opts -> {stop, Opts};
+                _ -> {ok, State}
+            end;
+        {ok, Result, _State} ->
+            {stop, Result}
+    end.
 
 %% Error types: socket, remote, local
-handle_call({execute, Stmt, Args, Timeout} = Operation, _From, State) ->
-    try jamdb_sybase_conn:execute(State, Stmt, Args, Timeout) of
+handle_call({execute, Stmt, Args}, _From, State) ->
+    try jamdb_sybase_conn:execute(State, Stmt, Args) of
         {ok, Result, State2} -> 
             {reply, {ok, Result}, State2};
         {error, Type, Message, State2} ->
             {reply, {error, format_error(Type, Message)}, State2}
     catch
-        Class:Reason ->
+        error:Reason ->
             Stacktrace = erlang:get_stacktrace(),
-            Err = {Operation, State, Class, Reason, Stacktrace},
-            ErrDesc = format_error(exception, Err),
             {ok, State2} = jamdb_sybase_conn:reconnect(State),
-            {reply, {error, ErrDesc}, State2}
+            {reply, {error, format_error(local, {Reason, Stacktrace})}, State2}
     end;
-handle_call({sql_query, Query, Timeout} = Operation, _From, State) ->
-    try jamdb_sybase_conn:sql_query(State, Query, Timeout) of
+handle_call({sql_query, Query}, _From, State) ->
+    try jamdb_sybase_conn:sql_query(State, Query) of
         {ok, Result, State2} -> 
             {reply, {ok, Result}, State2};
         {error, Type, Message, State2} ->
             {reply, {error, format_error(Type, Message)}, State2}
     catch
-        Class:Reason ->
+        error:Reason ->
             Stacktrace = erlang:get_stacktrace(),
-            Err = {Operation, State, Class, Reason, Stacktrace},
-            ErrDesc = format_error(exception, Err),
             {ok, State2} = jamdb_sybase_conn:reconnect(State),
-            {reply, {error, ErrDesc}, State2}
+            {reply, {error, format_error(local, {Reason, Stacktrace})}, State2}
     end;
-handle_call({prepare, Stmt, Query} = Operation, _From, State) ->
+handle_call({prepare, Stmt, Query}, _From, State) ->
     try jamdb_sybase_conn:prepare(State, Stmt, Query) of
         {ok, State2} -> 
             {reply, ok, State2};
         {error, Type, Message, State2} ->
             {reply, {error, format_error(Type, Message)}, State2}
     catch
-        Class:Reason ->
+        error:Reason ->
             Stacktrace = erlang:get_stacktrace(),
-            Err = {Operation, State, Class, Reason, Stacktrace},
-            ErrDesc = format_error(exception, Err),
             {ok, State2} = jamdb_sybase_conn:reconnect(State),
-            {reply, {error, ErrDesc}, State2}
+            {reply, {error, format_error(local, {Reason, Stacktrace})}, State2}
     end;
-handle_call({unprepare, Stmt} = Operation, _From, State) ->
+handle_call({unprepare, Stmt}, _From, State) ->
     try jamdb_sybase_conn:unprepare(State, Stmt) of
         {ok, State2} -> 
             {reply, ok, State2};
         {error, Type, Message, State2} ->
             {reply, {error, format_error(Type, Message)}, State2}
     catch
-        Class:Reason ->
+        error:Reason ->
             Stacktrace = erlang:get_stacktrace(),
-            Err = {Operation, State, Class, Reason, Stacktrace},
-            ErrDesc = format_error(exception, Err),
             {ok, State2} = jamdb_sybase_conn:reconnect(State),
-            {reply, {error, ErrDesc}, State2}
+            {reply, {error, format_error(local, {Reason, Stacktrace})}, State2}
     end;
 handle_call(stop, _From, State) ->
     {ok, _InitOpts} = jamdb_sybase_conn:disconnect(State),
@@ -146,14 +149,6 @@ format_error(remote, Message) ->
         {server_name,       Message#message.server_name},
         {procedure_name,    Message#message.procedure_name},
         {line_number,       Message#message.line_number}
-    ]};
-format_error(exception, {Operation, State, Class, Reason, Stacktrace}) ->
-    {local, [
-        {operation,         Operation},
-        {state,             State},
-        {exception_class,   Class},
-        {exception_reason,  Reason},
-        {stacktrace,        Stacktrace}
     ]};
 format_error(Type, Msg) ->
     {Type, Msg}.
