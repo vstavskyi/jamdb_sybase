@@ -1,11 +1,11 @@
 {application, jamdb_sybase, [
-    {description, "Erlang driver for SAP Sybase ASE"},
-    {vsn, "0.7.0"},
-    {id, "git"},
+    {description, "Erlang driver for Sybase"},
+    {vsn, "0.7.4"},
     {modules, []},
     {registered, []},
-    {applications, [
-        kernel,
-        stdlib
-    ]}
- ]}.
+    {applications, [kernel,stdlib]},
+    {files, [src,include,lib,"mix.exs"]},
+    {maintainers, ["Sergiy Kostyushkin","Mykhailo Vstavskyi"]},
+    {licenses, ["MIT"]},
+    {links, [{"Github", "https://github.com/erlangbureau/jamdb_sybase"}]}
+    ]}.
