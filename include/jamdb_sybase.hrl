@@ -1,3 +1,67 @@
+-ifndef(TDS_HRL).
+
+-include("TDS_constants.hrl").
+-include("jamdb_sybase_defaults.hrl").
+
+-define(ENCODER, jamdb_sybase_tds_encoder).
+-define(DECODER, jamdb_sybase_tds_decoder).
+
+-type env() :: 
+        {host, string()} |
+        {port, string()} |
+        {user, string()} |
+        {password, string()} |
+        {database, string()} |
+        {app_name, string()} |
+        {lib_name, string()} |
+        {language, string()} |
+        {packet_size, non_neg_integer()}.
+        %% TODO add message_handler
+
+-record(conn, {
+    socket = undefined,
+    state = disconnected :: disconnected | connected | auth_negotiate,
+    timeout :: non_neg_integer(),
+    packet_size :: non_neg_integer(),
+    tds_ver,
+    server = {<<"Unknown">>, <<0,0,0,0>>},
+    req_capabilities = [],
+    resp_capabilities = [],
+    env = [],
+    prepared = []
+}).
+
+-record(format, {
+    column_name = <<>>,
+    status,
+    usertype = 0,
+    datatype,
+    datatype_group,
+    datatype_max_len,
+    datatype_precision,
+    datatype_scale,
+    datatype_locale = <<>>,
+    datatype_class_id,
+    datatype_name,
+    db_name,
+    owner_name,
+    table_name,
+    label_name  = <<>>
+}).
+
+-record(message, {
+    msg_number, 
+    msg_state, 
+    class, 
+    sql_state,
+    status, 
+    transaction_state, 
+    msg_body, 
+    server_name, 
+    procedure_name, 
+    line_number
+}).
+
 -define(JAMDB_REQ_CAP, [
 
     %% byte 12
@@ -220,33 +284,6 @@
 %    ?TDS_RES_NOMSG                  %% 01:No support for TDS_MSG results
 ]).
 
--record(format, {
-    column_name = <<>>,
-    status,
-    usertype,
-    datatype,
-    datatype_group,
-    datatype_max_len,
-    datatype_precision,
-    datatype_scale,
-    datatype_locale,
-    datatype_class_id,
-    datatype_name,
-    db_name,
-    owner_name,
-    table_name,
-    label_name  = <<>>
-}).
+-define(TDS_HRL, "5.0").
 
--record(message, {
-    msg_number, 
-    msg_state, 
-    class, 
-    sql_state,
-    status, 
-    transaction_state, 
-    msg_body, 
-    server_name, 
-    procedure_name, 
-    line_number
-}).
+-endif.
