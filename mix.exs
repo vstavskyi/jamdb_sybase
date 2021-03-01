@@ -3,8 +3,8 @@ defmodule Jamdb.Sybase.Mixfile do
 
   def project do
     [app: :jamdb_sybase,
-     version: "0.7.4",
-     elixir: "~> 1.7",
+     version: "0.7.5",
+     elixir: "~> 1.8",
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
      description: description(),
@@ -14,7 +14,7 @@ defmodule Jamdb.Sybase.Mixfile do
 
   defp deps do
     [
-      {:ecto_sql, "~> 3.3"},
+      {:ecto_sql, "~> 3.5"},
       {:ex_doc, "~> 0.21", only: :docs}
     ]
   end
