@@ -150,7 +150,7 @@ defmodule Ecto.Adapters.Jamdb.Sybase.Connection do
     end
   end
 
-  @impl false
+  @impl true
   def explain_query(_conn, _query, _params, _opts) do
     {:ok, []}
   end
@@ -171,7 +171,6 @@ defmodule Ecto.Adapters.Jamdb.Sybase.Connection do
   defdelegate table_exists_query(table), to: Jamdb.Sybase.Query
   defdelegate execute_ddl(command), to: Jamdb.Sybase.Query
   defdelegate ddl_logs(result), to: Jamdb.Sybase.Query
-  defdelegate to_constraints(err), to: Jamdb.Sybase.Query
   defdelegate to_constraints(err, opts), to: Jamdb.Sybase.Query
 
 end
