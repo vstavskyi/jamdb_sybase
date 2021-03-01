@@ -1,10 +1,6 @@
 -module(jamdb_sybase).
--vsn("0.7.4").
+-vsn("0.7.5").
 -behaviour(gen_server).
-
--ifdef(OTP_RELEASE).
--compile({nowarn_deprecated_function, [{erlang, get_stacktrace, 0}]}).
--endif.
 
 %% API
 -export([start_link/1, start/1]).
@@ -75,9 +71,7 @@ handle_call({execute, Stmt, Args}, _From, State) ->
             {reply, {error, format_error(Type, Message)}, State2}
     catch
         error:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
-            {ok, State2} = jamdb_sybase_conn:reconnect(State),
-            {reply, {error, format_error(local, {Reason, Stacktrace})}, State2}
+            {reply, {error, format_error(local, Reason)}, State}
     end;
 handle_call({sql_query, Query}, _From, State) ->
     try jamdb_sybase_conn:sql_query(State, Query) of
@@ -87,9 +81,7 @@ handle_call({sql_query, Query}, _From, State) ->
             {reply, {error, format_error(Type, Message)}, State2}
     catch
         error:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
-            {ok, State2} = jamdb_sybase_conn:reconnect(State),
-            {reply, {error, format_error(local, {Reason, Stacktrace})}, State2}
+            {reply, {error, format_error(local, Reason)}, State2}
     end;
 handle_call({prepare, Stmt, Query}, _From, State) ->
     try jamdb_sybase_conn:prepare(State, Stmt, Query) of
@@ -99,9 +91,7 @@ handle_call({prepare, Stmt, Query}, _From, State) ->
             {reply, {error, format_error(Type, Message)}, State2}
     catch
         error:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
-            {ok, State2} = jamdb_sybase_conn:reconnect(State),
-            {reply, {error, format_error(local, {Reason, Stacktrace})}, State2}
+            {reply, {error, format_error(local, Reason)}, State2}
     end;
 handle_call({unprepare, Stmt}, _From, State) ->
     try jamdb_sybase_conn:unprepare(State, Stmt) of
@@ -111,9 +101,7 @@ handle_call({unprepare, Stmt}, _From, State) ->
             {reply, {error, format_error(Type, Message)}, State2}
     catch
         error:Reason ->
-            Stacktrace = erlang:get_stacktrace(),
-            {ok, State2} = jamdb_sybase_conn:reconnect(State),
-            {reply, {error, format_error(local, {Reason, Stacktrace})}, State2}
+            {reply, {error, format_error(local, Reason)}, State2}
     end;
 handle_call(stop, _From, State) ->
     {ok, _InitOpts} = jamdb_sybase_conn:disconnect(State),
