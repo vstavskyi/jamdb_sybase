@@ -81,7 +81,7 @@ handle_call({sql_query, Query}, _From, State) ->
             {reply, {error, format_error(Type, Message)}, State2}
     catch
         error:Reason ->
-            {reply, {error, format_error(local, Reason)}, State2}
+            {reply, {error, format_error(local, Reason)}, State}
     end;
 handle_call({prepare, Stmt, Query}, _From, State) ->
     try jamdb_sybase_conn:prepare(State, Stmt, Query) of
@@ -91,7 +91,7 @@ handle_call({prepare, Stmt, Query}, _From, State) ->
             {reply, {error, format_error(Type, Message)}, State2}
     catch
         error:Reason ->
-            {reply, {error, format_error(local, Reason)}, State2}
+            {reply, {error, format_error(local, Reason)}, State}
     end;
 handle_call({unprepare, Stmt}, _From, State) ->
     try jamdb_sybase_conn:unprepare(State, Stmt) of
@@ -101,7 +101,7 @@ handle_call({unprepare, Stmt}, _From, State) ->
             {reply, {error, format_error(Type, Message)}, State2}
     catch
         error:Reason ->
-            {reply, {error, format_error(local, Reason)}, State2}
+            {reply, {error, format_error(local, Reason)}, State}
     end;
 handle_call(stop, _From, State) ->
     {ok, _InitOpts} = jamdb_sybase_conn:disconnect(State),
