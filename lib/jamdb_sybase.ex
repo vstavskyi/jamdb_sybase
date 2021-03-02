@@ -57,7 +57,9 @@ defmodule Jamdb.Sybase do
   defp sql_query(pid, sql, params) do
     name = "dyn" <> Integer.to_string(:erlang.crc32(sql))
     :ok = :jamdb_sybase.prepare(pid, name, sql)
-    :jamdb_sybase.execute(pid, name, params)
+    result = :jamdb_sybase.execute(pid, name, params)
+    :ok = :jamdb_sybase.unprepare(pid, name)
+    result
   end
 
   @impl true
