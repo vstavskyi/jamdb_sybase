@@ -223,6 +223,9 @@ system_query(Conn = #conn{state=connected, socket=Socket,
         {error, Reason} -> handle_error(socket, Reason, Conn)
     end.
 
+handle_error(socket, Reason, Conn = #conn{state=connected}) ->
+    {ok, Conn2} = reconnect(Conn),
+    {error, local, Reason, Conn2};
 handle_error(socket, Reason, Conn) ->
     _ = disconnect(Conn, 0),
     {error, socket, Reason, Conn#conn{state = disconnected}};
