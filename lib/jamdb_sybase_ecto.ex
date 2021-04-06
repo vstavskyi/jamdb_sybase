@@ -109,6 +109,9 @@ defmodule Ecto.Adapters.Jamdb.Sybase do
   def structure_load(_default, _config), do: err()
 
   @impl true
+  def lock_for_migrations(_meta, _opts, fun), do: fun.()
+
+  @impl true
   def supports_ddl_transaction? do
     false
   end
@@ -166,6 +169,7 @@ defmodule Ecto.Adapters.Jamdb.Sybase.Connection do
   defdelegate update_all(query), to: Jamdb.Sybase.Query
   defdelegate delete_all(query), to: Jamdb.Sybase.Query
   defdelegate insert(prefix, table, header, rows, on_conflict, returning), to: Jamdb.Sybase.Query
+  defdelegate insert(prefix, table, header, rows, on_conflict, returning, placeholders), to: Jamdb.Oracle.Query
   defdelegate update(prefix, table, fields, filters, returning), to: Jamdb.Sybase.Query
   defdelegate delete(prefix, table, filters, returning), to: Jamdb.Sybase.Query
   defdelegate table_exists_query(table), to: Jamdb.Sybase.Query
