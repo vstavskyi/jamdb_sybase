@@ -3,7 +3,7 @@ defmodule Jamdb.Sybase.Mixfile do
 
   def project do
     [app: :jamdb_sybase,
-     version: "0.7.5",
+     version: "0.7.6",
      elixir: "~> 1.8",
      build_embedded: Mix.env == :prod,
      start_permanent: Mix.env == :prod,
