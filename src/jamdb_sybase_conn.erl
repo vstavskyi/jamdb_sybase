@@ -2,6 +2,7 @@
 
 %% API
 -export([connect/1, connect/2]).
+-export([reconnect/1]).
 -export([disconnect/1, disconnect/2]).
 -export([sql_query/2, sql_query/3]).
 -export([prepare/3, unprepare/2]).
@@ -223,9 +224,6 @@ system_query(Conn = #conn{state=connected, socket=Socket,
         {error, Reason} -> handle_error(socket, Reason, Conn)
     end.
 
-handle_error(socket, Reason, Conn = #conn{state=connected}) ->
-    {ok, Conn2} = reconnect(Conn),
-    {error, local, Reason, Conn2};
 handle_error(socket, Reason, Conn) ->
     _ = disconnect(Conn, 0),
     {error, socket, Reason, Conn#conn{state = disconnected}};
