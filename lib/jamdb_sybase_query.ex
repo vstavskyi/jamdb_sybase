@@ -51,7 +51,7 @@ defmodule Jamdb.Sybase.Query do
   end
 
   @doc false
-  def insert(prefix, table, header, rows, _on_conflict, _returning) do
+  def insert(prefix, table, header, rows, _on_conflict, _returning, _placeholders \\ []) do
     values =
       if header == [] do
         [" VALUES " | intersperse_map(rows, ?,, fn _ -> "(DEFAULT)" end)]
