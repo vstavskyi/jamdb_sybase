@@ -169,7 +169,7 @@ defmodule Ecto.Adapters.Jamdb.Sybase.Connection do
   defdelegate update_all(query), to: Jamdb.Sybase.Query
   defdelegate delete_all(query), to: Jamdb.Sybase.Query
   defdelegate insert(prefix, table, header, rows, on_conflict, returning), to: Jamdb.Sybase.Query
-  defdelegate insert(prefix, table, header, rows, on_conflict, returning, placeholders), to: Jamdb.Oracle.Query
+  defdelegate insert(prefix, table, header, rows, on_conflict, returning, placeholders), to: Jamdb.Sybase.Query
   defdelegate update(prefix, table, fields, filters, returning), to: Jamdb.Sybase.Query
   defdelegate delete(prefix, table, filters, returning), to: Jamdb.Sybase.Query
   defdelegate table_exists_query(table), to: Jamdb.Sybase.Query
