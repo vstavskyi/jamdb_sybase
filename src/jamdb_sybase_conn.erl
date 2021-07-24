@@ -82,7 +82,7 @@ disconnect(Conn = #conn{state=connected, socket=Socket, env=Env,
 disconnect(#conn{env = Env}, _Timeout) ->
     {ok, Env}.
 
--spec reconnect(state()) -> {ok, state()}.
+-spec reconnect(state()) -> empty_result().
 reconnect(Conn) ->
     {ok, InitOpts} = disconnect(Conn, 0),
     connect(InitOpts).
@@ -224,11 +224,11 @@ system_query(Conn = #conn{state=connected, socket=Socket,
         {error, Reason} -> handle_error(socket, Reason, Conn)
     end.
 
-handle_error(socket, Reason, Conn) ->
-    _ = disconnect(Conn, 0),
-    {error, socket, Reason, Conn#conn{state = disconnected}};
+handle_error(remote, Reason, Conn) ->
+    {error, remote, Reason, Conn};
 handle_error(Type, Reason, Conn) ->
-    {error, Type, Reason, Conn}.
+    _ = disconnect(Conn, 0),
+    {error, Type, Reason, Conn#conn{state = disconnected}}.
 
 handle_empty_resp(Conn, Timeout) ->
     case handle_resp(Conn, Timeout) of
