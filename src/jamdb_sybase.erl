@@ -1,5 +1,5 @@
 -module(jamdb_sybase).
--vsn("0.7.6").
+-vsn("0.7.7").
 -behaviour(gen_server).
 
 %% API
@@ -54,12 +54,11 @@ execute(Pid, Stmt, Args) ->
 init(Opts) ->
     case jamdb_sybase_conn:connect(Opts) of
         {ok, State} ->
-            case State of
-                Opts -> {stop, Opts};
-                _ -> {ok, State}
-            end;
+            {ok, State};
         {ok, Result, _State} ->
-            {stop, Result}
+            {stop, Result};
+        {error, Type, Result, _State} ->
+            {stop, {Type, Result}}
     end.
 
 %% Error types: socket, remote, local
