@@ -150,7 +150,7 @@ defmodule Jamdb.Sybase.Query do
   end
 
   defp select_fields([], _sources, _query),
-    do: "NULL"
+    do: "1"
   defp select_fields(fields, sources, query) do
     intersperse_map(fields, ", ", fn
       {key, value} ->
@@ -209,6 +209,7 @@ defmodule Jamdb.Sybase.Query do
   end
 
   defp join_on(:cross, true, _sources, _query), do: []
+  defp join_on(_qual, true, _sources, _query), do: [" ON 1 = 1"]
   defp join_on(_qual, expr, sources, query), do: [" ON " | expr(expr, sources, query)]
 
   defp join_qual(:inner), do: "INNER JOIN "
@@ -309,7 +310,7 @@ defmodule Jamdb.Sybase.Query do
   end
 
   defp expr({:in, _, [_left, []]}, _sources, _query) do
-    "false"
+    "0"
   end
 
   defp expr({:in, _, [left, right]}, sources, query) when is_list(right) do
@@ -375,6 +376,10 @@ defmodule Jamdb.Sybase.Query do
     interval(DateTime.utc_now, count, interval, sources, query)
   end
 
+  defp expr({:filter, _, _}, _sources, query) do
+    error!(query, "aggregate filters are not supported")
+  end
+
   defp expr({:{}, _, elems}, sources, query) do
     [?(, intersperse_map(elems, ?,, &expr(&1, sources, query)), ?)]
   end
@@ -400,8 +405,8 @@ defmodule Jamdb.Sybase.Query do
   end
 
   defp expr(nil, _sources, _query),   do: "NULL"
-  defp expr(true, _sources, _query),  do: "TRUE"
-  defp expr(false, _sources, _query), do: "FALSE"
+  defp expr(true, _sources, _query),  do: "1"
+  defp expr(false, _sources, _query), do: "0"
 
   defp expr(literal, _sources, _query) when is_binary(literal) do
     ["'", escape_string(literal), "'"]
@@ -481,10 +486,7 @@ defmodule Jamdb.Sybase.Query do
     quote_name(Atom.to_string(name))
   end
   defp quote_name(name) do
-    if String.contains?(name, "\"") do
-      error!(nil, "bad field name #{inspect name}")
-    end
-     [name] # identifiers are not case sensitive
+     [name]
   end
 
   defp quote_table(nil, name),    do: quote_table(name)
@@ -493,10 +495,7 @@ defmodule Jamdb.Sybase.Query do
   defp quote_table(name) when is_atom(name),
     do: quote_table(Atom.to_string(name))
   defp quote_table(name) do
-    if String.contains?(name, "\"") do
-      error!(nil, "bad table name #{inspect name}")
-    end
-     [name] # identifiers are not case sensitive
+     [name]
   end
 
   defp intersperse_map(list, separator, mapper, acc \\ [])
