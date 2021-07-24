@@ -1,5 +1,5 @@
 defmodule Jamdb.Sybase do
-  @vsn "0.7.6"
+  @vsn "0.7.7"
   @moduledoc """
   Adapter module for Sybase. `DBConnection` behaviour implementation.
 
@@ -64,17 +64,16 @@ defmodule Jamdb.Sybase do
 
   @impl true
   def connect(opts) do
-    database = Keyword.fetch!(opts, :database) |> to_charlist
-    env = [database: database]
-    |> Keyword.put_new(:host, Keyword.fetch!(opts, :hostname) |> to_charlist)
-    |> Keyword.put_new(:port, Keyword.fetch!(opts, :port))
-    |> Keyword.put_new(:user, Keyword.fetch!(opts, :username) |> to_charlist)
-    |> Keyword.put_new(:password, Keyword.fetch!(opts, :password) |> to_charlist)
-    |> Keyword.put_new(:timeout, Keyword.fetch!(opts, :timeout))
-    params = if( Keyword.has_key?(opts, :parameters) == true,
-      do: opts[:parameters], else: [] )
-    sock_opts = if( Keyword.has_key?(opts, :socket_options) == true,
-      do: [socket_options: opts[:socket_options]], else: [] )
+    host = opts[:hostname] |> Jamdb.Sybase.to_list
+    port = opts[:port]
+    timeout = opts[:timeout]
+    user = opts[:username] |> Jamdb.Sybase.to_list
+    password = opts[:password] |> Jamdb.Sybase.to_list
+    database = opts[:database] |> Jamdb.Sybase.to_list
+    env = [host: host, port: port, timeout: timeout,
+           user: user, password: password, database: database]
+    params = opts[:parameters] || []
+    sock_opts = opts[:socket_options] || []
     case :jamdb_sybase.start_link(sock_opts ++ params ++ env) do
       {:ok, pid} -> {:ok, %Jamdb.Sybase{pid: pid, mode: :idle}}
       {:error, [{:proc_result, _, msg}]} -> {:error, error!(msg)}
@@ -90,7 +89,7 @@ defmodule Jamdb.Sybase do
   @impl true
   def handle_execute(query, params, _opts, s) do
     %Jamdb.Sybase.Query{statement: statement} = query
-    case query(s, statement |> to_charlist, params) do
+    case query(s, statement |> Jamdb.Sybase.to_list, params) do
       {:ok, result} -> {:ok, query, result, s}
       {:error, err} -> {:error, error!(err), s}
       {:disconnect, err} -> {:disconnect, error!(err), s}
@@ -144,7 +143,7 @@ defmodule Jamdb.Sybase do
   end
 
   defp handle_transaction(statement, _opts, s) do
-    case query(s, statement |> to_charlist) do
+    case query(s, statement |> Jamdb.Sybase.to_list) do
       {:ok, result} -> {:ok, result, s}
       {:error, err} -> {:error, error!(err), s}
       {:disconnect, err} -> {:disconnect, error!(err), s}
@@ -159,7 +158,7 @@ defmodule Jamdb.Sybase do
   @impl true
   def handle_fetch(query, %{params: params}, _opts, %{cursors: nil} = s) do
     %Jamdb.Sybase.Query{statement: statement} = query
-    case query(s, statement |> to_charlist, params) do
+    case query(s, statement |> Jamdb.Sybase.to_list, params) do
       {:ok, result} -> 
         {:halt, result, s}
       {:error, err} -> {:error, error!(err), s}
@@ -225,6 +224,16 @@ defmodule Jamdb.Sybase do
     Application.get_env(:jamdb_sybase, :json_library, Jason)
   end
 
+  @doc false
+  def to_list(string) when is_binary(string) do
+    :binary.bin_to_list(string)
+  end
+
+  @doc false
+  defdelegate loaders(t, type), to: Ecto.Adapters.Jamdb.Sybase
+  @doc false
+  defdelegate dumpers(t, type), to: Ecto.Adapters.Jamdb.Sybase
+
 end
 
 defimpl DBConnection.Query, for: Jamdb.Sybase.Query do
@@ -270,7 +279,7 @@ defimpl DBConnection.Query, for: Jamdb.Sybase.Query do
   defp encode(%Date{} = date), do: Date.to_erl(date)
   defp encode(%Time{} = time), do: Time.to_erl(time)
   defp encode(%Ecto.Query.Tagged{value: elem, type: :binary}) when is_binary(elem), do: elem
-  defp encode(elem) when is_binary(elem), do: elem |> to_charlist
+  defp encode(elem) when is_binary(elem), do: Jamdb.Sybase.to_list(elem)
   defp encode(elem) when is_map(elem), 
     do: encode(Jamdb.Sybase.json_library().encode!(elem))
   defp encode(elem), do: elem
