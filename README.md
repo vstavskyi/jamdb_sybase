@@ -1,53 +1,60 @@
-JamDB Sybase 
-============
+# Jamdb.Sybase
 
 Erlang driver and Ecto adapter for Sybase ASE Database
 
-[![hex downloads](https://img.shields.io/hexpm/dt/jamdb_sybase?label=hex%20downloads)](https://hex.pm/packages/jamdb_sybase)
+## Options
 
-Goals
-=====
+Adapter options split in different categories described
+below. All options can be given via the repository
+configuration:
 
-* No third-party dependencies.
-* No parameterized module.
-* No process dictionary.
-* No ports.
-* No NIF's.
-* All code written exclusively in Erlang.
+    config :your_app, YourApp.Repo,
+      ...
 
-Getting Started
-===============
+### Connection options
 
-```erl
+  * `:hostname` - Server hostname (Name or IP address of the database server)
+  * `:port` - Server port (Number of the port where the server listens for requests)
+  * `:database` - Database (Database name)
+  * `:username` - Username (Name for the connecting user)
+  * `:password` - User password (Password for the connecting user)
+  * `:parameters` - Keyword list of connection parameters
+  * `:socket_options` - Options to be given to the underlying socket
+  * `:timeout` - The default timeout to use on queries, defaults to `15000`
 
-%% Set connection options
-1> Opts = [
-    {host, "jamdb-sybase-dev.erlangbureau.dp.ua"},
-    {port, 5000},
-    {user, "jamdbtest"},
-    {password, "jamdbtest"},
-    {database, "jamdbtest"}
-].
+### Pool options
 
-%% Connect
-2> {ok, Pid} = jamdb_sybase:start_link(Opts).
-{ok,<0.36.0>}
+  * `:pool` - The connection pool module, defaults to `DBConnection.ConnectionPool`
+  * `:pool_size` - The size of the pool, defaults to `1`
+  * `:idle_interval` - The ping interval to validate an idle connection, defaults to `1000`	
 
-%% Simple select
-3> {ok, Result} = jamdb_sybase:sql_query(Pid, "select 1 as one, 2 as two, 3 as three").
-{ok,[{result_set,[
-        <<"one">>,<<"two">>,<<"three">>],
-        [],
-        [[1,2,3]]}]}
+### Input parameters
 
-```
+Using query options: `[in: [:numeric, :binary]]`
 
-Character Encodings
-========
-The default encoding in Erlang is utf8. So jamdb_sybase sending all strings to the server in utf8. They should by automatically converted to the corresponding encoding by the server. If the database server cannot do so, it generates an error message indicating that character conversion cannot be properly completed.
+Sybase types                        | Literal syntax in params
+:---------------------------------- | :-----------------------
+`bigint`,`int`,`smallint`,`tinyint` | `:int`, `:integer`
+`numeric`, `decimal`                | `:numeric`, `:decimal`
+`float`, `double`                   | `:float`, `:double`
+`char`, `varchar`, `univarchar`     | `:varchar`, `:char`, `:string`
+`nchar`, `nvarchar`                 | `:nvarchar`, `:nchar`
+`text`, `unitext`, `image`          | `:text`, `:clob`
+`binary`, `varbinary`               | `:binary`
+`long binary`, ` long varchar`      | `:long`
+`money`, `smallmoney`               | `:money`
+`datetime`, `smalldatetime`         | `:datetime`
+`date`                              | `:date`
+`time`                              | `:time`
+`bit`                               | `:bit`
 
-TDS Protocol References
-=======================
-* [Official TDS 5.0 Specification, version 3.8, January 2006](http://ondoc.logand.com/d/2219/pdf)
-* [FreeTDS Documentation (C)](http://www.freetds.org)
-* [jTDS Documentation (Java)](http://jtds.sourceforge.net/doc.html)
+#### Examples
+
+    iex> Ecto.Adapters.SQL.query(YourApp.Repo, "select 1/10, getdate(), newid()", [])
+    {:ok, %{num_rows: 1, rows: [[0, ~N[2016-08-01 13:14:15], "84be3f476ce14052aed69dbfa57cdd43"]]}}
+
+    iex> bin = %Ecto.Query.Tagged{value: <<0xE7,0x99,0xBE>>, type: :binary}
+    iex> Ecto.Adapters.SQL.query(YourApp.Repo, "insert into tabl values (:1)", [bin])
+    
+    iex> bin = <<0xE7,0x99,0xBE>>
+    iex> Ecto.Adapters.SQL.query(YourApp.Repo, "insert into tabl values (:1)", [bin]], [in: [:binary]])
