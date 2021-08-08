@@ -51,23 +51,29 @@ defmodule Jamdb.Sybase.Query do
   end
 
   @doc false
-  def insert(prefix, table, header, rows, _on_conflict, _returning, _placeholders \\ []) do
+  def insert(prefix, table, header, rows, _on_conflict, _returning, placeholders \\ []) do
+    counter_offset = length(placeholders) + 1
     values =
       if header == [] do
-        [" VALUES " | intersperse_map(rows, ?,, fn _ -> "(DEFAULT)" end)]
+        [?\s | insert_all(rows, counter_offset)]
       else
-        [?\s, ?(, intersperse_map(header, ?,, &quote_name/1), ") VALUES " | insert_all([header], 1)]
+        [?\s, ?(, intersperse_map(header, ?,, &quote_name/1), ?),
+         ?\s | insert_all(rows, counter_offset)]
       end
 
     ["INSERT INTO ", quote_table(prefix, table), values]
   end
 
+  defp insert_all(query = %Ecto.Query{}, _counter) do
+    [?(, all(query), ?)]
+  end
+
   defp insert_all(rows, counter) do
-    intersperse_reduce(rows, ?,, counter, fn row, counter ->
+    ["VALUES ", intersperse_reduce(rows, ?,, counter, fn row, counter ->
       {row, counter} = insert_each(row, counter)
       {[?(, row, ?)], counter}
     end)
-    |> elem(0)
+    |> elem(0)]
   end
 
   defp insert_each(values, counter) do
@@ -77,6 +83,9 @@ defmodule Jamdb.Sybase.Query do
 
       {%Ecto.Query{} = query, params_counter}, counter ->
         {[?(, all(query), ?)], counter + params_counter}
+
+      {:placeholder, _}, counter ->
+        {'?', counter}
 
       _, counter ->
         {'?', counter + 1}
