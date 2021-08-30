@@ -162,6 +162,11 @@ defmodule Jamdb.Sybase.Query do
     do: "1"
   defp select_fields(fields, sources, query) do
     intersperse_map(fields, ", ", fn
+      {:&, _, [idx]} ->
+        case elem(sources, idx) do
+          {_, source, nil} -> [source, ?. | "*"]
+          {_, source, _} -> source
+        end
       {key, value} ->
         [expr(value, sources, query), ?\s | quote_name(key)]
       value ->
@@ -304,9 +309,10 @@ defmodule Jamdb.Sybase.Query do
     '?'
   end
 
-  defp expr({{:., _, [{:parent_as, _, [{:&, _, [idx]}]}, field]}, _, []}, _sources, query)
-      when is_atom(field) do
-    quote_qualified_name(field, query.aliases[@parent_as], idx)
+  defp expr({{:., _, [{:parent_as, _, [as]}, field]}, _, []}, _sources, query)
+       when is_atom(field) do
+    {ix, sources} = get_parent_sources_ix(query, as)
+    quote_qualified_name(field, sources, ix)
   end
 
   defp expr({{:., _, [{:&, _, [idx]}, field]}, _, []}, sources, _query) when is_atom(field) do
@@ -352,8 +358,8 @@ defmodule Jamdb.Sybase.Query do
     ["NOT (", expr(expr, sources, query), ?)]
   end
 
-  defp expr(%Ecto.SubQuery{query: query}, sources, _query) do
-    query = put_in(query.aliases[@parent_as], sources)
+  defp expr(%Ecto.SubQuery{query: query}, sources, parent_query) do
+    query = put_in(query.aliases[@parent_as], {parent_query, sources})
     [?(, all(query, subquery_as_prefix(sources)), ?)]
   end
 
@@ -400,17 +406,23 @@ defmodule Jamdb.Sybase.Query do
   end
 
   defp expr({fun, _, args}, sources, query) when is_atom(fun) and is_list(args) do
+    {modifier, args} =
+      case args do
+        [rest, :distinct] -> {"DISTINCT ", [rest]}
+        _ -> {[], args}
+      end
+
     case handle_call(fun, length(args)) do
       {:binary_op, op} ->
         [left, right] = args
-        [op_to_binary(left, sources, query), op | op_to_binary(right, sources, query)]
+        [maybe_paren(left, sources, query), op | maybe_paren(right, sources, query)]
       {:fun, fun} ->
-        [fun, ?(, [], intersperse_map(args, ", ", &expr(&1, sources, query)), ?)]
+        [fun, ?(, modifier, intersperse_map(args, ", ", &expr(&1, sources, query)), ?)]
     end
   end
 
   defp expr(%Ecto.Query.Tagged{value: literal}, sources, query) do
-    expr(literal, sources, query)
+     ["CAST(", expr(literal, sources, query), " AS varchar)"]
   end
 
   defp expr(nil, _sources, _query),   do: "NULL"
@@ -434,13 +446,14 @@ defmodule Jamdb.Sybase.Query do
       expr(datetime, sources, query), ?)]
   end
 
-  defp op_to_binary({op, _, [_, _]} = expr, sources, query) when op in @binary_ops do
-    paren_expr(expr, sources, query)
-  end
+  defp maybe_paren({op, _, [_, _]} = expr, sources, query) when op in @binary_ops,
+    do: paren_expr(expr, sources, query)
 
-  defp op_to_binary(expr, sources, query) do
-    expr(expr, sources, query)
-  end
+  defp maybe_paren({:is_nil, _, [_]} = expr, sources, query),
+    do: paren_expr(expr, sources, query)
+
+  defp maybe_paren(expr, sources, query),
+    do: expr(expr, sources, query)
 
   defp create_names(%{sources: sources}, as_prefix) do
     create_names(sources, 0, tuple_size(sources), as_prefix) |> List.to_tuple()
@@ -484,6 +497,13 @@ defmodule Jamdb.Sybase.Query do
   defp get_source(query, sources, ix, source) do
     {expr, name, _schema} = elem(sources, ix)
     {expr || paren_expr(source, sources, query), name}
+  end
+
+  defp get_parent_sources_ix(query, as) do
+    case query.aliases[@parent_as] do
+      {%{aliases: %{^as => ix}}, sources} -> {ix, sources}
+      {%{} = parent, _sources} -> get_parent_sources_ix(parent, as)
+    end
   end
 
   defp quote_qualified_name(name, sources, ix) do
