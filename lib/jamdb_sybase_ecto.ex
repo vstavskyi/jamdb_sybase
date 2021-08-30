@@ -116,7 +116,6 @@ defmodule Ecto.Adapters.Jamdb.Sybase.Connection do
   defdelegate all(query), to: Jamdb.Sybase.Query
   defdelegate update_all(query), to: Jamdb.Sybase.Query
   defdelegate delete_all(query), to: Jamdb.Sybase.Query
-  defdelegate insert(prefix, table, header, rows, on_conflict, returning), to: Jamdb.Sybase.Query
   defdelegate insert(prefix, table, header, rows, on_conflict, returning, placeholders), to: Jamdb.Sybase.Query
   defdelegate update(prefix, table, fields, filters, returning), to: Jamdb.Sybase.Query
   defdelegate delete(prefix, table, filters, returning), to: Jamdb.Sybase.Query
