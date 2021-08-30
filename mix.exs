@@ -14,7 +14,7 @@ defmodule Jamdb.Sybase.Mixfile do
 
   defp deps do
     [
-      {:ecto_sql, "~> 3.5"},
+      {:ecto_sql, "~> 3.7"},
       {:ex_doc, "~> 0.21", only: :docs}
     ]
   end
