@@ -55,6 +55,6 @@ Sybase types                        | Literal syntax in params
 
     iex> bin = %Ecto.Query.Tagged{value: <<0xE7,0x99,0xBE>>, type: :binary}
     iex> Ecto.Adapters.SQL.query(YourApp.Repo, "insert into tabl values (:1)", [bin])
-    
+
     iex> bin = <<0xE7,0x99,0xBE>>
     iex> Ecto.Adapters.SQL.query(YourApp.Repo, "insert into tabl values (:1)", [bin]], [in: [:binary]])
