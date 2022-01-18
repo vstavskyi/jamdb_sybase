@@ -1,5 +1,5 @@
 defmodule Jamdb.Sybase do
-  @vsn "0.7.7"
+  @vsn "0.7.8"
   @moduledoc """
   Adapter module for Sybase. `DBConnection` behaviour implementation.
 
@@ -179,11 +179,6 @@ defmodule Jamdb.Sybase do
   @impl true
   def handle_status(_opts, %{mode: mode} = s) do
     {mode, s}
-  end
-
-  @impl true
-  def checkin(s) do
-    {:ok, s}
   end
 
   @impl true
