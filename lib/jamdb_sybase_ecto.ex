@@ -107,6 +107,11 @@ defmodule Ecto.Adapters.Jamdb.Sybase.Connection do
   end
 
   @impl true
+  def query_many(_conn, _query, _params, _opts) do
+    error!(nil, "query_many is not supported")
+  end
+
+  @impl true
   def explain_query(_conn, _query, _params, _opts) do
     {:ok, []}
   end
@@ -116,6 +121,10 @@ defmodule Ecto.Adapters.Jamdb.Sybase.Connection do
   end
   defp query!(%{} = query, _name) do
     query
+  end
+
+  defp error!(nil, msg) do
+    raise ArgumentError, msg
   end
 
   defdelegate all(query), to: Jamdb.Sybase.Query
