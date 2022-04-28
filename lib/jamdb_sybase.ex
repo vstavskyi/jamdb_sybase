@@ -181,6 +181,11 @@ defmodule Jamdb.Sybase do
     {mode, s}
   end
 
+  @doc false
+  def checkin(s) do
+    {:ok, s}
+  end
+
   @impl true
   def checkout(s) do
     case query(s, 'SET CHAINED off') do
