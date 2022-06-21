@@ -127,15 +127,25 @@ defmodule Ecto.Adapters.Jamdb.Sybase.Connection do
     raise ArgumentError, msg
   end
 
+  @impl true
   defdelegate all(query), to: Jamdb.Sybase.Query
+  @impl true
   defdelegate update_all(query), to: Jamdb.Sybase.Query
+  @impl true
   defdelegate delete_all(query), to: Jamdb.Sybase.Query
+  @impl true
   defdelegate insert(prefix, table, header, rows, on_conflict, returning, placeholders), to: Jamdb.Sybase.Query
+  @impl true
   defdelegate update(prefix, table, fields, filters, returning), to: Jamdb.Sybase.Query
+  @impl true
   defdelegate delete(prefix, table, filters, returning), to: Jamdb.Sybase.Query
+  @impl true
   defdelegate table_exists_query(table), to: Jamdb.Sybase.Query
+  @impl true
   defdelegate execute_ddl(command), to: Jamdb.Sybase.Query
+  @impl true
   defdelegate ddl_logs(result), to: Jamdb.Sybase.Query
+  @impl true
   defdelegate to_constraints(err, opts), to: Jamdb.Sybase.Query
 
 end
