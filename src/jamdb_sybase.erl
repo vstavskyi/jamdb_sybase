@@ -1,5 +1,5 @@
 -module(jamdb_sybase).
--vsn("0.7.8").
+-vsn("0.7.9").
 -behaviour(gen_server).
 
 %% API
