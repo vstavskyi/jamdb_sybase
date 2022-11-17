@@ -1,5 +1,5 @@
 -module(jamdb_sybase).
--vsn("0.7.9").
+-vsn("0.7.10").
 -behaviour(gen_server).
 
 %% API
@@ -27,13 +27,13 @@ start(Opts) when is_list(Opts) ->
 
 -spec stop(pid()) -> ok.
 stop(Pid) ->
-    call_infinity(Pid, stop).
+    gen_server:call(Pid, stop).
 
-sql_query(Pid, Query, _Timeout) ->
-    sql_query(Pid, Query).
+sql_query(Pid, Query, Timeout) ->
+    gen_server:call(Pid, {sql_query, Query}, Timeout).
 
 sql_query(Pid, Query) ->
-    call_infinity(Pid, {sql_query, Query}).
+    gen_server:call(Pid, {sql_query, Query}, infinity).
 
 prepare(Pid, Stmt, Query) ->
     call_infinity(Pid, {prepare, Stmt, Query}).
