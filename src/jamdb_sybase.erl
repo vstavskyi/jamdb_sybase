@@ -36,19 +36,19 @@ sql_query(Pid, Query) ->
     gen_server:call(Pid, {sql_query, Query}, infinity).
 
 prepare(Pid, Stmt, Query) ->
-    call_infinity(Pid, {prepare, Stmt, Query}).
+    gen_server:call(Pid, {prepare, Stmt, Query}).
 
 unprepare(Pid, Stmt) ->
-    call_infinity(Pid, {unprepare, Stmt}).
+     gen_server:call(Pid, {unprepare, Stmt}).
 
 execute(Pid, Stmt) ->
     execute(Pid, Stmt, []).
 
-execute(Pid, Stmt, Args, _Timeout) ->
-    execute(Pid, Stmt, Args).
+execute(Pid, Stmt, Args, Timeout) ->
+    gen_server:call(Pid, {execute, Stmt, Args}, Timeout).
 
 execute(Pid, Stmt, Args) ->
-    call_infinity(Pid, {execute, Stmt, Args}).
+    gen_server:call(Pid, {execute, Stmt, Args}, infinity).
 
 %% gen_server callbacks
 init(Opts) ->
@@ -121,9 +121,6 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 %% internal
-call_infinity(Pid, Msg) ->
-    gen_server:call(Pid, Msg, infinity).
-
 format_error(remote, Message) ->
     {remote, [
         {msg_number,        Message#message.msg_number},
