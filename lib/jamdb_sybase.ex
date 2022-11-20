@@ -9,7 +9,7 @@ defmodule Jamdb.Sybase do
 
   use DBConnection
 
-  defstruct [:pid, :mode, :cursors]  
+  defstruct [:pid, :mode, :cursors, :timeout]  
 
   @doc """
   Starts and links to a database connection process.
@@ -75,8 +75,7 @@ defmodule Jamdb.Sybase do
     params = opts[:parameters] || []
     sock_opts = opts[:socket_options] || []
     case :jamdb_sybase.start_link(sock_opts ++ params ++ env) do
-      {:ok, pid} -> {:ok, %Jamdb.Sybase{pid: pid, mode: :idle}}
-      {:error, [{:proc_result, _, msg}]} -> {:error, error!(msg)}
+      {:ok, pid} -> {:ok, %Jamdb.Sybase{pid: pid, mode: :idle, timeout: timeout}}
       {:error, err} -> {:error, error!(err)}
     end
   end
