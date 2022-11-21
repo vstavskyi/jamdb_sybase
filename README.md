@@ -1,5 +1,3 @@
-[![Build Status](https://travis-ci.org/vstavskyi/jamdb_sybase-1.svg?branch=ecto-adapter)](https://travis-ci.org/vstavskyi/jamdb_sybase-1)
-
 # Jamdb.Sybase
 
 Erlang driver and Ecto adapter for Sybase ASE Database
