@@ -33,7 +33,7 @@ sql_query(Pid, Query, Timeout) ->
     gen_server:call(Pid, {sql_query, Query}, Timeout).
 
 sql_query(Pid, Query) ->
-    gen_server:call(Pid, {sql_query, Query}, infinity).
+    gen_server:call(Pid, {sql_query, Query}).
 
 prepare(Pid, Stmt, Query) ->
     gen_server:call(Pid, {prepare, Stmt, Query}).
@@ -48,7 +48,7 @@ execute(Pid, Stmt, Args, Timeout) ->
     gen_server:call(Pid, {execute, Stmt, Args}, Timeout).
 
 execute(Pid, Stmt, Args) ->
-    gen_server:call(Pid, {execute, Stmt, Args}, infinity).
+    gen_server:call(Pid, {execute, Stmt, Args}).
 
 %% gen_server callbacks
 init(Opts) ->
