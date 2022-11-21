@@ -9,7 +9,9 @@ defmodule Jamdb.Sybase do
 
   use DBConnection
 
-  defstruct [:pid, :mode, :cursors]  
+  @timeout 15_000
+
+  defstruct [:pid, :mode, :cursors, :timeout]
 
   @doc """
   Starts and links to a database connection process.
@@ -40,9 +42,8 @@ defmodule Jamdb.Sybase do
   @spec query(conn :: any(), sql :: any(), params :: any()) ::
     {:ok, any()} | {:error | :disconnect, any()}
   def query(conn, sql, params \\ [])
-  def query(pid, sql, params) when is_pid(pid), do: query(%{pid: pid}, sql, params)
-  def query(%{pid: pid}, sql, params) do
-    case sql_query(pid, sql, params) do
+  def query(%{pid: pid, timeout: timeout}, sql, params) do
+    case sql_query(pid, sql, params, timeout) do
       {:ok, [{:result_set, columns, _, rows}]} ->
         {:ok, %{num_rows: length(rows), rows: rows, columns: columns}}
       {:ok, [{:proc_result, 0, rows}]} -> {:ok, %{num_rows: length(rows), rows: rows}}
@@ -52,12 +53,17 @@ defmodule Jamdb.Sybase do
       {:error, err} -> {:disconnect, err}
     end
   end
+  def query(pid, sql, params) when is_pid(pid) do
+    query(%{pid: pid, timeout: @timeout}, sql, params)
+  end
 
-  defp sql_query(pid, sql, []), do: :jamdb_sybase.sql_query(pid, sql)
-  defp sql_query(pid, sql, params) do
+  defp sql_query(pid, sql, [], timeout) do
+    :jamdb_sybase.sql_query(pid, sql, timeout)
+  end
+  defp sql_query(pid, sql, params, timeout) do
     name = "dyn" <> Integer.to_string(:erlang.crc32(sql))
     :ok = :jamdb_sybase.prepare(pid, name, sql)
-    result = :jamdb_sybase.execute(pid, name, params)
+    result = :jamdb_sybase.execute(pid, name, params, timeout)
     :ok = :jamdb_sybase.unprepare(pid, name)
     result
   end
@@ -66,7 +72,7 @@ defmodule Jamdb.Sybase do
   def connect(opts) do
     host = opts[:hostname] |> Jamdb.Sybase.to_list
     port = opts[:port]
-    timeout = opts[:timeout]
+    timeout = opts[:timeout] || @timeout
     user = opts[:username] |> Jamdb.Sybase.to_list
     password = opts[:password] |> Jamdb.Sybase.to_list
     database = opts[:database] |> Jamdb.Sybase.to_list
@@ -75,7 +81,7 @@ defmodule Jamdb.Sybase do
     params = opts[:parameters] || []
     sock_opts = opts[:socket_options] || []
     case :jamdb_sybase.start_link(sock_opts ++ params ++ env) do
-      {:ok, pid} -> {:ok, %Jamdb.Sybase{pid: pid, mode: :idle}}
+      {:ok, pid} -> {:ok, %Jamdb.Sybase{pid: pid, mode: :idle, timeout: timeout}}
       {:error, err} -> {:error, error!(err)}
     end
   end
