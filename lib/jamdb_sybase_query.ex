@@ -265,7 +265,7 @@ defmodule Jamdb.Sybase.Query do
   end
 
   defp limit(%{limit: nil}, _sources), do: []
-  defp limit(%{limit: %QueryExpr{expr: expr}} = query, sources) do
+  defp limit(%{limit: %{expr: expr}} = query, sources) do
     [" TOP ", expr(expr, sources, query), ?\s]
   end
 
