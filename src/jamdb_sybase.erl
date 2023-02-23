@@ -1,5 +1,5 @@
 -module(jamdb_sybase).
--vsn("0.7.10").
+-vsn("0.7.11").
 -behaviour(gen_server).
 
 %% API
@@ -13,6 +13,8 @@
 -export([init/1, terminate/2]).
 -export([handle_call/3, handle_cast/2, handle_info/2]).
 -export([code_change/3]).
+
+-define(default_timeout, 5000).
 
 -include("jamdb_sybase.hrl").
 
@@ -30,10 +32,10 @@ stop(Pid) ->
     gen_server:call(Pid, stop).
 
 sql_query(Pid, Query, Timeout) ->
-    gen_server:call(Pid, {sql_query, Query}, Timeout).
+    gen_server:call(Pid, {sql_query, Query, Timeout}, Timeout).
 
 sql_query(Pid, Query) ->
-    gen_server:call(Pid, {sql_query, Query}).
+    gen_server:call(Pid, {sql_query, Query, ?default_timeout}).
 
 prepare(Pid, Stmt, Query) ->
     gen_server:call(Pid, {prepare, Stmt, Query}).
@@ -41,14 +43,14 @@ prepare(Pid, Stmt, Query) ->
 unprepare(Pid, Stmt) ->
      gen_server:call(Pid, {unprepare, Stmt}).
 
-execute(Pid, Stmt) ->
-    execute(Pid, Stmt, []).
-
 execute(Pid, Stmt, Args, Timeout) ->
-    gen_server:call(Pid, {execute, Stmt, Args}, Timeout).
+    gen_server:call(Pid, {execute, Stmt, Args, Timeout}, Timeout).
 
 execute(Pid, Stmt, Args) ->
-    gen_server:call(Pid, {execute, Stmt, Args}).
+    gen_server:call(Pid, {execute, Stmt, Args, ?default_timeout}).
+
+execute(Pid, Stmt) ->
+    gen_server:call(Pid, {execute, Stmt, [], ?default_timeout}).
 
 %% gen_server callbacks
 init(Opts) ->
@@ -62,8 +64,8 @@ init(Opts) ->
     end.
 
 %% Error types: socket, remote, local
-handle_call({execute, Stmt, Args}, _From, State) ->
-    try jamdb_sybase_conn:execute(State, Stmt, Args) of
+handle_call({execute, Stmt, Args, Timeout}, _From, State) ->
+    try jamdb_sybase_conn:execute(State, Stmt, Args, Timeout) of
         {ok, Result, State2} -> 
             {reply, {ok, Result}, State2};
         {error, Type, Message, State2} ->
@@ -72,8 +74,8 @@ handle_call({execute, Stmt, Args}, _From, State) ->
         error:Reason ->
             {reply, {error, format_error(local, Reason)}, State}
     end;
-handle_call({sql_query, Query}, _From, State) ->
-    try jamdb_sybase_conn:sql_query(State, Query) of
+handle_call({sql_query, Query, Timeout}, _From, State) ->
+    try jamdb_sybase_conn:sql_query(State, Query, Timeout) of
         {ok, Result, State2} -> 
             {reply, {ok, Result}, State2};
         {error, Type, Message, State2} ->
