@@ -1,5 +1,5 @@
 defmodule Jamdb.Sybase do
-  @vsn "0.7.10"
+  @vsn "0.7.11"
   @moduledoc """
   Adapter module for Sybase. `DBConnection` behaviour implementation.
 
@@ -102,8 +102,9 @@ defmodule Jamdb.Sybase do
   end
 
   @impl true
-  def handle_prepare(query, _opts, s) do
-    {:ok, query, s}
+  def handle_prepare(query, opts, s) do
+    timeout = opts[:timeout] || @timeout
+    {:ok, query, %{s | timeout: timeout}}
   end
 
   @impl true
