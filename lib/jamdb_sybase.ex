@@ -1,5 +1,5 @@
 defmodule Jamdb.Sybase do
-  @vsn "0.7.12"
+  @vsn "0.7.13"
   @moduledoc """
   Adapter module for Sybase. `DBConnection` behaviour implementation.
 
@@ -10,8 +10,9 @@ defmodule Jamdb.Sybase do
   use DBConnection
 
   @timeout 15_000
+  @idle_interval 5_000
 
-  defstruct [:pid, :mode, :cursors, :timeout]
+  defstruct [:conn, :mode, :cursors, :timeout, :idle_interval]
 
   @doc """
   Starts and links to a database connection process.
@@ -23,7 +24,7 @@ defmodule Jamdb.Sybase do
   to validate an idle connection can be given with the `:idle_interval` option.
   """
   @spec start_link(opts :: Keyword.t) :: 
-    {:ok, pid()} | {:error, any()}
+    {:ok, any()} | {:error, any()}
   def start_link(opts) do
     DBConnection.start_link(Jamdb.Sybase, opts)
   end
@@ -42,30 +43,41 @@ defmodule Jamdb.Sybase do
   @spec query(conn :: any(), sql :: any(), params :: any()) ::
     {:ok, any()} | {:error | :disconnect, any()}
   def query(conn, sql, params \\ [])
-  def query(%{pid: pid, timeout: timeout}, sql, params) do
-    case sql_query(pid, sql, params, timeout) do
-      {:ok, [{:result_set, columns, _, rows}]} ->
-        {:ok, %{num_rows: length(rows), rows: rows, columns: columns}}
-      {:ok, [{:proc_result, 0, rows}]} -> {:ok, %{num_rows: length(rows), rows: rows}}
-      {:ok, [{:proc_result, _, msg}]} -> {:error, msg}
-      {:ok, [{:affected_rows, num_rows}]} -> {:ok, %{num_rows: num_rows, rows: nil}}
-      {:ok, result} -> {:ok, result}
-      {:error, err} -> {:disconnect, err}
+  def query(%{conn: conn, timeout: timeout} = s, sql, params) do
+    case sql_query(conn, sql, params, timeout) do
+      {:ok, [{:result_set, columns, _, rows}], conn} ->
+        {:ok, %{num_rows: length(rows), rows: rows, columns: columns}, %{s | conn: conn}}
+      {:ok, [{:proc_result, 0, rows}], conn} -> {:ok, %{num_rows: length(rows), rows: rows}, %{s | conn: conn}}
+      {:ok, [{:proc_result, _, msg}], conn} -> {:error, msg, %{s | conn: conn}}
+      {:ok, [{:affected_rows, num_rows}], conn} -> {:ok, %{num_rows: num_rows, rows: nil}, %{s | conn: conn}}
+      {:ok, result, conn} -> {:ok, result, %{s | conn: conn}}
+      {:error, err, conn} -> {:disconnect, err, conn}
     end
   end
-  def query(pid, sql, params) when is_pid(pid) do
-    query(%{pid: pid, timeout: @timeout}, sql, params)
-  end
 
-  defp sql_query(pid, sql, [], timeout) do
-    :jamdb_sybase.sql_query(pid, sql, timeout)
+  defp sql_query(conn, sql, [], timeout) do
+    try do
+      case :jamdb_sybase_conn.sql_query(conn, sql, timeout) do
+        {:ok, result, conn} -> {:ok, result, conn}
+        {:error, _, err, conn} -> {:error, err, conn}
+      end
+    catch
+      _, err -> {:error, err, conn}
+    end
   end
-  defp sql_query(pid, sql, params, timeout) do
-    name = "dyn" <> Integer.to_string(:erlang.crc32(sql))
-    :ok = :jamdb_sybase.prepare(pid, name, sql)
-    result = :jamdb_sybase.execute(pid, name, params, timeout)
-    :ok = :jamdb_sybase.unprepare(pid, name)
-    result
+  defp sql_query(conn, sql, params, timeout) do
+    try do
+      name = "dyn" <> Integer.to_string(:erlang.crc32(sql))
+      {:ok, conn} = :jamdb_sybase_conn.prepare(conn, name, sql)
+      case :jamdb_sybase_conn.execute(conn, name, params, timeout) do
+        {:ok, result, conn} -> 
+          {:ok, conn} = :jamdb_sybase_conn.unprepare(conn, name)
+          {:ok, result, conn}
+        {:error, _, err, conn} -> {:error, err, conn}
+      end
+    catch
+      _, err -> {:error, err, conn}
+    end
   end
 
   @impl true
@@ -73,31 +85,38 @@ defmodule Jamdb.Sybase do
     host = opts[:hostname] |> Jamdb.Sybase.to_list
     port = opts[:port]
     timeout = opts[:timeout] || @timeout
+    idle_interval = opts[:idle_interval] || @idle_interval
     user = opts[:username] |> Jamdb.Sybase.to_list
     password = opts[:password] |> Jamdb.Sybase.to_list
     database = opts[:database] |> Jamdb.Sybase.to_list
-    env = [host: host, port: port, timeout: timeout,
+    env = [host: host, port: port, timeout: timeout, idle_interval: idle_interval,
            user: user, password: password, database: database]
     params = opts[:parameters] || []
     sock_opts = opts[:socket_options] || []
-    case :jamdb_sybase.start_link(sock_opts ++ params ++ env) do
-      {:ok, pid} -> {:ok, %Jamdb.Sybase{pid: pid, mode: :idle, timeout: timeout}}
-      {:error, err} -> {:error, error!(err)}
+    case :jamdb_sybase_conn.connect(sock_opts ++ params ++ env) do
+      {:ok, conn} -> {:ok, %Jamdb.Sybase{conn: conn, mode: :idle, timeout: timeout, idle_interval: idle_interval}}
+      {:ok, msg, _conn} -> {:error, error!(msg)}
+      {:error, _, err, _conn} -> {:error, error!(err)}
     end
   end
 
   @impl true
-  def disconnect(_err, %{pid: pid}) do
-    :jamdb_sybase.stop(pid) 
+  def disconnect(_err, %{conn: conn}) do
+    try do
+      :jamdb_sybase_conn.disconnect(conn)
+    catch
+      _, _ -> :error
+    end
+    :ok
   end
 
   @impl true
   def handle_execute(query, params, _opts, s) do
     %Jamdb.Sybase.Query{statement: statement} = query
     case query(s, statement |> Jamdb.Sybase.to_list, params) do
-      {:ok, result} -> {:ok, query, result, s}
-      {:error, err} -> {:error, error!(err), s}
-      {:disconnect, err} -> {:disconnect, error!(err), s}
+      {:ok, result, s} -> {:ok, query, result, s}
+      {:error, err, s} -> {:error, error!(err), s}
+      {:disconnect, err, s} -> {:disconnect, error!(err), s}
     end
   end
 
@@ -150,9 +169,9 @@ defmodule Jamdb.Sybase do
 
   defp handle_transaction(statement, _opts, s) do
     case query(s, statement |> Jamdb.Sybase.to_list) do
-      {:ok, result} -> {:ok, result, s}
-      {:error, err} -> {:error, error!(err), s}
-      {:disconnect, err} -> {:disconnect, error!(err), s}
+      {:ok, result, s} -> {:ok, result, s}
+      {:error, err, s} -> {:error, error!(err), s}
+      {:disconnect, err, s} -> {:disconnect, error!(err), s}
     end
   end
 
@@ -165,10 +184,10 @@ defmodule Jamdb.Sybase do
   def handle_fetch(query, %{params: params}, _opts, %{cursors: nil} = s) do
     %Jamdb.Sybase.Query{statement: statement} = query
     case query(s, statement |> Jamdb.Sybase.to_list, params) do
-      {:ok, result} -> 
+      {:ok, result, s} -> 
         {:halt, result, s}
-      {:error, err} -> {:error, error!(err), s}
-      {:disconnect, err} -> {:disconnect, error!(err), s}
+      {:error, err, s} -> {:error, error!(err), s}
+      {:disconnect, err, s} -> {:disconnect, error!(err), s}
     end
   end
 
@@ -193,23 +212,19 @@ defmodule Jamdb.Sybase do
   end
 
   @impl true
-  def checkout(s) do
-    case query(s, 'SET CHAINED off') do
-      {:ok, _} -> {:ok, s}
-      {:error, err} ->  {:disconnect, error!(err), s}
+  def checkout(%{conn: conn, timeout: timeout} = s) do
+    case sql_query(conn, 'SET CHAINED off', [], timeout) do
+      {:ok, _, _conn} -> {:ok, s}
+      {:error, err, _conn} ->  {:disconnect, error!(err), s}
     end
   end
 
   @impl true
-  def ping(%{mode: :idle} = s) do
-    case query(s, 'SELECT 1') do
-      {:ok, _} -> {:ok, s}
-      {:error, err} -> {:disconnect, error!(err), s}
-      {:disconnect, err} -> {:disconnect, error!(err), s}
+  def ping(%{conn: conn, timeout: timeout, idle_interval: idle_interval} = s) do
+    case sql_query(conn, 'SELECT 1', [], min(timeout, idle_interval)) do
+      {:ok, _, _conn} -> {:ok, s}
+      {:error, err, _conn} ->  {:disconnect, error!(err), s}
     end
-  end
-  def ping(%{mode: :transaction} = s) do
-    {:ok, s}
   end
 
   defp error!(msg) do
@@ -277,8 +292,8 @@ defimpl DBConnection.Query, for: Jamdb.Sybase.Query do
   defp encode([elem | next1], [_type | next2]), do: [ elem | encode(next1, next2)]
 
   defp encode(nil), do: :null
-  defp encode(true), do: "1"
-  defp encode(false), do: "0"
+  defp encode(true), do: [49]
+  defp encode(false), do: [48]
   defp encode(%Decimal{} = decimal), do: Decimal.to_float(decimal)
   defp encode(%DateTime{} = datetime), do: NaiveDateTime.to_erl(DateTime.to_naive(datetime))
   defp encode(%NaiveDateTime{} = naive), do: NaiveDateTime.to_erl(naive)
