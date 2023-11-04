@@ -1,5 +1,5 @@
 -module(jamdb_sybase).
--vsn("0.7.11").
+-vsn("0.7.13").
 -behaviour(gen_server).
 
 %% API
@@ -71,8 +71,8 @@ handle_call({execute, Stmt, Args, Timeout}, _From, State) ->
         {error, Type, Message, State2} ->
             {reply, {error, format_error(Type, Message)}, State2}
     catch
-        error:Reason ->
-            {reply, {error, format_error(local, Reason)}, State}
+        error:_Reason ->
+            {stop, normal, State}
     end;
 handle_call({sql_query, Query, Timeout}, _From, State) ->
     try jamdb_sybase_conn:sql_query(State, Query, Timeout) of
@@ -81,8 +81,8 @@ handle_call({sql_query, Query, Timeout}, _From, State) ->
         {error, Type, Message, State2} ->
             {reply, {error, format_error(Type, Message)}, State2}
     catch
-        error:Reason ->
-            {reply, {error, format_error(local, Reason)}, State}
+        error:_Reason ->
+            {stop, normal, State}
     end;
 handle_call({prepare, Stmt, Query}, _From, State) ->
     try jamdb_sybase_conn:prepare(State, Stmt, Query) of
@@ -91,8 +91,8 @@ handle_call({prepare, Stmt, Query}, _From, State) ->
         {error, Type, Message, State2} ->
             {reply, {error, format_error(Type, Message)}, State2}
     catch
-        error:Reason ->
-            {reply, {error, format_error(local, Reason)}, State}
+        error:_Reason ->
+            {stop, normal, State}
     end;
 handle_call({unprepare, Stmt}, _From, State) ->
     try jamdb_sybase_conn:unprepare(State, Stmt) of
@@ -101,18 +101,25 @@ handle_call({unprepare, Stmt}, _From, State) ->
         {error, Type, Message, State2} ->
             {reply, {error, format_error(Type, Message)}, State2}
     catch
-        error:Reason ->
-            {reply, {error, format_error(local, Reason)}, State}
+        error:_Reason ->
+            {stop, normal, State}
     end;
 handle_call(stop, _From, State) ->
-    {ok, _InitOpts} = jamdb_sybase_conn:disconnect(State),
-    {stop, normal, ok, State};
+    try jamdb_sybase_conn:disconnect(State) of
+        {ok, _Result} ->
+            {stop, normal, ok, State}
+    catch
+        error:_Reason ->
+            {stop, normal, State}
+    end;
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
+handle_info(timeout, State) ->
+    {stop, normal, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 
