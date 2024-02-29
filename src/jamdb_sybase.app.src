@@ -1,6 +1,6 @@
 {application, jamdb_sybase, [
     {description, "Erlang driver for Sybase"},
-    {vsn, "0.7.13"},
+    {vsn, "0.7.14"},
     {modules, []},
     {registered, []},
     {applications, [kernel,stdlib]},
