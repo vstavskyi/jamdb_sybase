@@ -3,7 +3,7 @@ defmodule Jamdb.Sybase.Mixfile do
 
   def project do
     [app: :jamdb_sybase,
-     version: "0.7.13",
+     version: "0.7.14",
      elixir: "~> 1.10",
      description: description(),
      package: package(),
