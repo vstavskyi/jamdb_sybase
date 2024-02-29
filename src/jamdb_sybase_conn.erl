@@ -50,6 +50,8 @@ connect(Opts, Timeout) ->
                 packet_size   = PktSize,
                 env           = Opts
             },
+            {ok, [{recbuf, RecBuf}]} = inet:getopts(Socket, [recbuf]),
+            inet:setopts(Socket, [{buffer, RecBuf}]),
             case login(Conn, Timeout) of
                 {ok, Conn3 = #conn{state = connected}} ->
                     system_query(Conn3, ["use ", Database], Timeout);
