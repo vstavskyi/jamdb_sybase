@@ -494,7 +494,9 @@ decode_value(Data, #format{datatype=?TDS_TYPE_LONGBINARY}, Nullable) ->
 decode_value(Data, #format{datatype=?TDS_TYPE_TEXT}, _Nullable) ->
     decode_text(Data, utf8);
 decode_value(Data, #format{datatype=?TDS_TYPE_UNITEXT}, _Nullable) ->
-    decode_text(Data, utf16).
+    decode_text(Data, utf16);
+decode_value(Data, #format{datatype=?TDS_TYPE_IMAGE}, _Nullable) ->
+    decode_text(Data, utf8).
 
 decode_date(DaysSince1900) ->
     calendar:gregorian_days_to_date(693961 + DaysSince1900).
