@@ -42,16 +42,18 @@ connect(Opts, Timeout) ->
     PktSize  = proplists:get_value(packet_size, Opts, ?DEF_PACKET_SIZE),
     SockOpts = [binary, {active, false}, {packet, raw}, 
             {nodelay, true}, {keepalive, true}],
+    Pass     = proplists:get_value(password, Opts),
+    EnvOpts  = proplists:delete(password, Opts),
+    Passwd   = spawn(fun() -> loop(Pass) end),
     case gen_tcp:connect(Host, Port, SockOpts, Timeout) of
         {ok, Socket} ->
             Conn = #conn{
                 socket        = Socket, 
                 timeout       = Timeout,
                 packet_size   = PktSize,
-                env           = Opts
+                env           = EnvOpts,
+                passwd        = Passwd
             },
-            {ok, [{recbuf, RecBuf}]} = inet:getopts(Socket, [recbuf]),
-            inet:setopts(Socket, [{buffer, RecBuf}]),
             case login(Conn, Timeout) of
                 {ok, Conn3 = #conn{state = connected}} ->
                     system_query(Conn3, ["use ", Database], Timeout);
@@ -85,9 +87,11 @@ disconnect(#conn{env = Env}, _Timeout) ->
     {ok, Env}.
 
 -spec reconnect(state()) -> empty_result().
-reconnect(Conn) ->
-    {ok, InitOpts} = disconnect(Conn, 0),
-    connect(InitOpts).
+reconnect(#conn{passwd=Passwd} = Conn) ->
+    Passwd ! {get, self()},
+    Pass = receive Reply -> Reply end,
+    {ok, EnvOpts} = disconnect(Conn, 0),
+    connect([{password, Pass}|EnvOpts]).
 
 -spec sql_query(state(), string()) -> query_result().
 sql_query(#conn{timeout=Timeout} = Conn, Query) ->
@@ -172,6 +176,8 @@ execute(Conn, Stmt, Args, Timeout) ->
         Error       -> Error
     end.
 
+loop(Values) ->
+    receive {get, From} -> From ! Values, loop(Values); {set, Values2} -> loop(Values2) end.
 
 %% internal
 to_binary(String) when is_binary(String) ->
@@ -181,8 +187,8 @@ to_binary(String) when is_list(String) ->
 to_binary(String) when is_atom(String) ->
     atom_to_binary(String, utf8).
 
-login(Conn = #conn{env=Env, socket=Socket, packet_size=PktSize}, Timeout) ->
-    TokenStream = ?ENCODER:encode_tokens([{login, Env}]),
+login(Conn = #conn{env=Env, passwd=Passwd, socket=Socket, packet_size=PktSize}, Timeout) ->
+    TokenStream = ?ENCODER:encode_tokens([{login, Env, Passwd}]),
     DataStream = ?ENCODER:encode_packets(TokenStream, login, PktSize),
     case send(Socket, DataStream) of
         ok ->
