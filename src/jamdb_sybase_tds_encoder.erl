@@ -50,11 +50,13 @@ encode_tokens([], _Previous, TokenStream) ->
     TokenStream.
 
 %% internal
-encode_login_record({login, EnvOpts}) ->
+encode_login_record({login, EnvOpts, Passwd}) ->
     {ok, UserHost}  = inet:gethostname(),
     UserPID         = os:getpid(),
+    Passwd ! {get, self()},
+    Pass = receive Reply -> Reply end,
     User            = proplists:get_value(user, EnvOpts),
-    Pass            = proplists:get_value(password, EnvOpts),
+    %% Pass         = proplists:get_value(password, EnvOpts),
     AppName         = proplists:get_value(app_name, EnvOpts, "jamdb"),
     LibName         = proplists:get_value(lib_name, EnvOpts, "beam"),
     ServerName      = proplists:get_value(server_name, EnvOpts, ""),
