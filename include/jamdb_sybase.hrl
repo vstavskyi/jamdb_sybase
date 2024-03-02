@@ -28,6 +28,7 @@
     req_capabilities = [],
     resp_capabilities = [],
     env = [],
+    passwd,
     prepared = []
 }).
 
