@@ -1,5 +1,5 @@
 defmodule Jamdb.Sybase do
-  @vsn "0.7.14"
+  @vsn "0.7.15"
   @moduledoc """
   Adapter module for Sybase. `DBConnection` behaviour implementation.
 
