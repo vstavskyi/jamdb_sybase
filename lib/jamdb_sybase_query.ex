@@ -9,7 +9,7 @@ defmodule Jamdb.Sybase.Query do
   defstruct [:statement, :name]  
 
   @parent_as __MODULE__
-  alias Ecto.Query.{BooleanExpr, JoinExpr, QueryExpr}
+  alias Ecto.Query.{BooleanExpr, ByExpr, JoinExpr, QueryExpr}
 
   @doc false
   def all(query, as_prefix \\ []) do
@@ -175,10 +175,10 @@ defmodule Jamdb.Sybase.Query do
   end
 
   defp distinct(nil, _, _), do: []
-  defp distinct(%QueryExpr{expr: []}, _, _), do: {[], []}
-  defp distinct(%QueryExpr{expr: true}, _, _), do: "DISTINCT "
-  defp distinct(%QueryExpr{expr: false}, _, _), do: []
-  defp distinct(%QueryExpr{expr: exprs}, _, _) when is_list(exprs), do: "DISTINCT "
+  defp distinct(%ByExpr{expr: []}, _, _), do: {[], []}
+  defp distinct(%ByExpr{expr: true}, _, _), do: "DISTINCT "
+  defp distinct(%ByExpr{expr: false}, _, _), do: []
+  defp distinct(%ByExpr{expr: exprs}, _, _) when is_list(exprs), do: "DISTINCT "
 
   defp from(%{from: %{hints: [_ | _]}} = query, _sources) do
     error!(query, "table hints are not supported")
@@ -241,8 +241,7 @@ defmodule Jamdb.Sybase.Query do
   defp group_by(%{group_bys: []}, _sources), do: []
   defp group_by(%{group_bys: group_bys} = query, sources) do
     [" GROUP BY " |
-     intersperse_map(group_bys, ", ", fn
-       %QueryExpr{expr: expr} ->
+     intersperse_map(group_bys, ", ", fn %ByExpr{expr: expr} ->
          intersperse_map(expr, ", ", &expr(&1, sources, query))
      end)]
   end
@@ -250,8 +249,7 @@ defmodule Jamdb.Sybase.Query do
   defp order_by(%{order_bys: []}, _sources), do: []
   defp order_by(%{order_bys: order_bys} = query, sources) do
     [" ORDER BY " |
-     intersperse_map(order_bys, ", ", fn
-       %QueryExpr{expr: expr} ->
+     intersperse_map(order_bys, ", ", fn %ByExpr{expr: expr} ->
          intersperse_map(expr, ", ", &order_by_expr(&1, sources, query))
      end)]
   end
