@@ -3,8 +3,8 @@ defmodule Jamdb.Sybase.Mixfile do
 
   def project do
     [app: :jamdb_sybase,
-     version: "0.7.14",
-     elixir: "~> 1.10",
+     version: "0.7.15",
+     elixir: "~> 1.11",
      description: description(),
      package: package(),
      deps: deps()]
@@ -12,7 +12,7 @@ defmodule Jamdb.Sybase.Mixfile do
 
   defp deps do
     [
-      {:ecto_sql, "~> 3.8"}
+      {:ecto_sql, "~> 3.12"}
     ]
   end
 
